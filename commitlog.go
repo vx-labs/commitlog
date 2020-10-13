@@ -85,12 +85,12 @@ func newLog(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) *co
 }
 
 func create(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (CommitLog, error) {
-	l := newLog(datadir, segmentMaxRecordCount)
+	l := newLog(datadir, segmentMaxRecordCount, opts...)
 	return l, l.appendSegment()
 }
 
 func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (CommitLog, error) {
-	l := newLog(datadir, segmentMaxRecordCount)
+	l := newLog(datadir, segmentMaxRecordCount, opts...)
 	files := logFiles(datadir)
 	var offset uint64 = files[0]
 	for {
