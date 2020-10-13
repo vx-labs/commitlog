@@ -55,31 +55,42 @@ func logFiles(datadir string) []uint64 {
 	return out
 }
 
-func Open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
+type createOpt func(*commitLog)
+
+func WithMaxSegmentCount(i int) createOpt {
+	return func(c *commitLog) { c.maxSegmentCount = i }
+}
+
+func Open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (CommitLog, error) {
 	files := logFiles(datadir)
 	if len(files) > 0 {
-		return open(datadir, segmentMaxRecordCount)
+		return open(datadir, segmentMaxRecordCount, opts...)
 	}
 	err := os.MkdirAll(datadir, 0750)
 	if err != nil {
 		return nil, err
 	}
-	return create(datadir, segmentMaxRecordCount)
+	return create(datadir, segmentMaxRecordCount, opts...)
 }
 
-func create(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
-	l := &commitLog{
+func newLog(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) *commitLog {
+	c := &commitLog{
 		datadir:               datadir,
 		segmentMaxRecordCount: segmentMaxRecordCount,
 	}
-	return l, l.appendSegment(0)
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
-func open(datadir string, segmentMaxRecordCount uint64) (CommitLog, error) {
-	l := &commitLog{
-		datadir:               datadir,
-		segmentMaxRecordCount: segmentMaxRecordCount,
-	}
+func create(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (CommitLog, error) {
+	l := newLog(datadir, segmentMaxRecordCount)
+	return l, l.appendSegment()
+}
+
+func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (CommitLog, error) {
+	l := newLog(datadir, segmentMaxRecordCount)
 	files := logFiles(datadir)
 	var offset uint64 = files[0]
 	for {
@@ -147,12 +158,17 @@ func (e *commitLog) Delete() error {
 	}
 	return nil
 }
-func (e *commitLog) appendSegment(offset uint64) error {
-	segment, err := createSegment(e.datadir, offset, e.segmentMaxRecordCount)
-	if err != nil {
-		return errors.Wrap(err, "failed to create new segment")
+func (e *commitLog) appendSegment() error {
+	var nextOffset uint64
+	if len(e.segments) > 0 {
+		nextOffset = e.segments[len(e.segments)-1] + e.segmentMaxRecordCount
 	}
-	e.segments = append(e.segments, offset)
+
+	segment, err := createSegment(e.datadir, nextOffset, e.segmentMaxRecordCount)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to create new segment with offset %d", nextOffset))
+	}
+	e.segments = append(e.segments, nextOffset)
 	if e.activeSegment != nil {
 		err = e.activeSegment.Close()
 		if err != nil {
@@ -160,10 +176,22 @@ func (e *commitLog) appendSegment(offset uint64) error {
 		}
 	}
 	e.activeSegment = segment
-	if e.maxSegmentCount > 0 && len(e.segments) > e.maxSegmentCount {
-
-	}
 	return nil
+}
+
+// trimSegments will delete segments acording to e.maxSegmentCount
+func (e *commitLog) trimSegments() {
+	if e.maxSegmentCount <= 0 || len(e.segments) < e.maxSegmentCount {
+		return
+	}
+	count := len(e.segments)
+	for _, segment := range e.segments[0 : count-e.maxSegmentCount] {
+		err := deleteSegment(e.datadir, segment)
+		if err != nil {
+			// TODO: provide feedback on error
+		}
+	}
+	e.segments = e.segments[count-e.maxSegmentCount:]
 }
 
 // lookupOffset returns the segment index of the segment containing the provided offset
@@ -258,10 +286,11 @@ func (e *commitLog) WriteEntry(ts uint64, value []byte) (uint64, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 	if segmentEntryCount := e.activeSegment.CurrentOffset(); segmentEntryCount >= e.segmentMaxRecordCount {
-		err := e.appendSegment(uint64(len(e.segments)) * e.segmentMaxRecordCount)
+		err := e.appendSegment()
 		if err != nil {
 			return 0, errors.Wrap(err, "failed to extend log")
 		}
+		e.trimSegments()
 	}
 	n, err := e.activeSegment.WriteEntry(ts, value)
 	return n + e.activeSegment.BaseOffset(), err
