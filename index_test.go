@@ -8,7 +8,10 @@ import (
 )
 
 func TestIndex(t *testing.T) {
-	datadir := "/tmp"
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+	defer os.RemoveAll(datadir)
+
 	index, err := createIndex(datadir, "", 0, 200)
 	require.NoError(t, err)
 	defer os.Remove(index.FilePath())
@@ -33,7 +36,9 @@ func TestIndex(t *testing.T) {
 }
 
 func BenchmarkIndex(b *testing.B) {
-	datadir := "/tmp"
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+
 	index, err := createIndex(datadir, "", 0, 200)
 	require.NoError(b, err)
 	defer os.Remove(index.FilePath())

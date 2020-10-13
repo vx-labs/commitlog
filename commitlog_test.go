@@ -3,13 +3,17 @@ package commitlog
 import (
 	"fmt"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCommitLog(t *testing.T) {
-	datadir := "/tmp/"
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+	defer os.RemoveAll(datadir)
+
 	clog, err := create(datadir, 10)
 	require.NoError(t, err)
 	defer clog.Delete()
@@ -65,7 +69,10 @@ func TestCommitLog(t *testing.T) {
 }
 
 func BenchmarkLog(b *testing.B) {
-	datadir := "/tmp"
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+	defer os.RemoveAll(datadir)
+
 	s, err := create(datadir, 500)
 	require.NoError(b, err)
 	defer s.Delete()

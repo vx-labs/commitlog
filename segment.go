@@ -63,17 +63,26 @@ func (s *segment) Close() error {
 	}
 	return s.fd.Close()
 }
+
+func deleteSegment(datadir string, id uint64) error {
+	err := os.Remove(segmentName(datadir, id))
+	if err != nil {
+		return err
+	}
+	err = os.Remove(indexName(datadir, "offsets", id))
+	if err != nil {
+		return err
+	}
+	err = os.Remove(indexName(datadir, "timestamps", id))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *segment) Delete() error {
 	s.Close()
-	err := os.Remove(s.offsetIndex.FilePath())
-	if err != nil {
-		return err
-	}
-	err = os.Remove(s.timestampIndex.FilePath())
-	if err != nil {
-		return err
-	}
-	return os.Remove(s.FilePath())
+	return deleteSegment(s.path, s.baseOffset)
 }
 
 func (i *segment) FilePath() string {

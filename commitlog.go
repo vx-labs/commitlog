@@ -23,6 +23,7 @@ type commitLog struct {
 	activeSegment         Segment
 	segments              []uint64
 	segmentMaxRecordCount uint64
+	maxSegmentCount       int
 }
 type CommitLog interface {
 	io.Closer
@@ -159,6 +160,9 @@ func (e *commitLog) appendSegment(offset uint64) error {
 		}
 	}
 	e.activeSegment = segment
+	if e.maxSegmentCount > 0 && len(e.segments) > e.maxSegmentCount {
+
+	}
 	return nil
 }
 

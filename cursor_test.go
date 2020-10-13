@@ -3,13 +3,17 @@ package commitlog
 import (
 	"bytes"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCursor(t *testing.T) {
-	datadir := "/tmp/"
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+	defer os.RemoveAll(datadir)
+
 	clog, err := create(datadir, 10)
 	require.NoError(t, err)
 	defer clog.Delete()
