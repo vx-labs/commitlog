@@ -207,6 +207,9 @@ func (e *commitLog) lookupOffsetUnlocked(offset uint64) int {
 	idx := sort.Search(count, func(i int) bool {
 		return e.segments[i] > offset
 	})
+	if idx == 0 {
+		return 0
+	}
 	return idx - 1
 }
 func (e *commitLog) LookupTimestamp(ts uint64) uint64 {
