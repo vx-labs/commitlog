@@ -114,6 +114,7 @@ func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (Comm
 		}
 		offset += uint64(segmentMaxRecordCount)
 	}
+	l.trimSegments()
 	return l, nil
 }
 
