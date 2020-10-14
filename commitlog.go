@@ -27,12 +27,18 @@ type commitLog struct {
 }
 type CommitLog interface {
 	io.Closer
+	// WriteEntry appends a binary payload to the commitlog.
 	WriteEntry(ts uint64, value []byte) (uint64, error)
+	// Delete closes then deletes the commitlog from disk.
 	Delete() error
+	// Reader returns a seekable reader
 	Reader() Cursor
+	// Offset returns the offset of the next record the be written.
 	Offset() uint64
 	Datadir() string
+	//LookupTimestamp returns the seekable offset of the first record writen after the provided timestamp.
 	LookupTimestamp(ts uint64) uint64
+	//Latest returns the timestamp of the most recent record
 	Latest() uint64
 	GetStatistics() Statistics
 	TruncateAfter(offset uint64) error
@@ -175,14 +181,14 @@ func (e *commitLog) trimSegments() {
 	e.segments = e.segments[count-e.maxSegmentCount:]
 }
 
-// lookupOffset returns the segment index of the segment containing the provided offset
-func (e *commitLog) lookupOffset(offset uint64) int {
+// LookupOffsetSegment returns the segment index of the segment containing the provided offset
+func (e *commitLog) LookupOffsetSegment(offset uint64) int {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	return e.lookupOffsetUnlocked(offset)
+	return e.lookupOffsetSegment(offset)
 }
 
-func (e *commitLog) lookupOffsetUnlocked(offset uint64) int {
+func (e *commitLog) lookupOffsetSegment(offset uint64) int {
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
 		return e.segments[i].BaseOffset() > offset
@@ -218,7 +224,7 @@ func (e *commitLog) TruncateAfter(offset uint64) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
-	segmentIdx := e.lookupOffsetUnlocked(offset)
+	segmentIdx := e.lookupOffsetSegment(offset)
 
 	var segment Segment
 	var err error

@@ -25,7 +25,7 @@ func (c *cursor) Seek(offset int64, whence int) (int64, error) {
 	return c.seek(offset, whence)
 }
 func (c *cursor) seekFromStart(offset int64) (int64, error) {
-	idx := c.log.lookupOffset(uint64(offset))
+	idx := c.log.LookupOffsetSegment(uint64(offset))
 	if idx != c.currentIdx || c.currentSegment == nil {
 		if c.currentSegment != nil {
 			c.currentSegment = nil
