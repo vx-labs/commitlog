@@ -23,6 +23,7 @@ type commitLog struct {
 	activeSegment         Segment
 	segments              []Segment
 	segmentMaxRecordCount uint64
+	currentOffset         uint64
 	maxSegmentCount       int
 }
 type CommitLog interface {
@@ -118,14 +119,14 @@ func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (Comm
 		offset += uint64(segmentMaxRecordCount)
 	}
 	l.trimSegments()
+	l.currentOffset = l.activeSegment.CurrentOffset() + l.activeSegment.BaseOffset()
 	return l, nil
 }
 
 func (e *commitLog) Offset() uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-
-	return e.activeSegment.CurrentOffset() + e.activeSegment.BaseOffset()
+	return e.currentOffset
 }
 func (e *commitLog) Latest() uint64 {
 	e.mtx.Lock()
@@ -258,6 +259,7 @@ func (e *commitLog) WriteEntry(ts uint64, value []byte) (uint64, error) {
 		}
 		e.trimSegments()
 	}
-	n, err := e.activeSegment.WriteEntry(ts, value)
-	return n + e.activeSegment.BaseOffset(), err
+	_, err := e.activeSegment.WriteEntry(ts, value)
+	e.currentOffset++
+	return e.currentOffset - 1, err
 }
