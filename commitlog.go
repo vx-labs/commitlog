@@ -43,6 +43,8 @@ type CommitLog interface {
 	Latest() uint64
 	GetStatistics() Statistics
 	TruncateAfter(offset uint64) error
+	// TruncateBefore delete segments before the one containing the provided offset
+	TruncateBefore(offset uint64) error
 }
 
 func logFiles(datadir string) []uint64 {
@@ -231,6 +233,21 @@ func (e *commitLog) Reader() Cursor {
 		currentSegment: e.segments[0],
 		pos:            0,
 	}
+}
+
+func (e *commitLog) TruncateBefore(offset uint64) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	idx := e.lookupOffsetSegment(offset)
+	if idx == 0 {
+		return nil
+	}
+	for _, segment := range e.segments[:idx] {
+		segment.Delete()
+	}
+	e.segments = e.segments[idx:]
+	return nil
 }
 
 // Truncate the log *after* the given offset. You must ensure no one is reading the log before truncating it.

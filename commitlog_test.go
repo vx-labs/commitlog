@@ -3,6 +3,7 @@ package commitlog
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"testing"
 
@@ -64,6 +65,11 @@ func TestCommitLog(t *testing.T) {
 		entry, err := dec.Decode()
 		require.NoError(t, err)
 		require.Equal(t, []byte("test"), entry.Payload())
+	})
+	t.Run("should allow log truncation", func(t *testing.T) {
+		log.Print(clog.GetStatistics().SegmentCount)
+		require.NoError(t, clog.TruncateBefore(40))
+		require.Equal(t, uint64(1), clog.GetStatistics().SegmentCount)
 	})
 }
 
