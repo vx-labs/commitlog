@@ -60,7 +60,6 @@ func TestCommitLog(t *testing.T) {
 	t.Run("should decoder to be plugged in", func(t *testing.T) {
 		r := clog.Reader()
 		r.Seek(1, io.SeekStart)
-		defer r.Close()
 		dec := NewDecoder(r)
 		entry, err := dec.Decode()
 		require.NoError(t, err)

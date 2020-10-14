@@ -30,7 +30,6 @@ func TestCursor(t *testing.T) {
 	t.Run("should allow being written to an io.Writer", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 		c := clog.Reader()
-		defer c.Close()
 		c.Seek(0, io.SeekStart)
 		n, err := io.Copy(buf, c)
 		require.NoError(t, err)
@@ -39,7 +38,6 @@ func TestCursor(t *testing.T) {
 	t.Run("should allow reading the log", func(t *testing.T) {
 		buf := make([]byte, 1600)
 		r := clog.Reader()
-		defer r.Close()
 		n, err := io.ReadFull(r, buf)
 		require.NoError(t, err)
 		require.Equal(t, 1600, n)

@@ -8,9 +8,7 @@ import (
 )
 
 type Cursor interface {
-	io.Seeker
-	io.Reader
-	io.Closer
+	io.ReadSeeker
 }
 
 type cursor struct {
@@ -21,16 +19,6 @@ type cursor struct {
 	log            *commitLog
 }
 
-func (c *cursor) Close() error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if c.currentSegment != nil {
-		c.currentSegment = nil
-		c.pos = 0
-		return nil
-	}
-	return nil
-}
 func (c *cursor) Seek(offset int64, whence int) (int64, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
