@@ -182,6 +182,14 @@ func (e *commitLog) trimSegments() {
 	e.segments = e.segments[count-e.maxSegmentCount:]
 }
 
+// LookupOffsetSegment returns the segment containing the provided offset
+func (e *commitLog) lookupOffset(offset uint64) Segment {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	idx := e.lookupOffsetSegment(offset)
+	return e.segments[idx]
+}
+
 // LookupOffsetSegment returns the segment index of the segment containing the provided offset
 func (e *commitLog) LookupOffsetSegment(offset uint64) int {
 	e.mtx.Lock()
@@ -215,8 +223,13 @@ func (e *commitLog) LookupTimestamp(ts uint64) uint64 {
 }
 
 func (e *commitLog) Reader() Cursor {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
 	return &cursor{
-		log: e,
+		log:            e,
+		currentSegment: e.segments[0],
+		pos:            0,
 	}
 }
 
