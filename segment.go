@@ -19,7 +19,6 @@ var (
 )
 
 type Segment interface {
-	FilePath() string
 	Name() string
 	BaseOffset() uint64
 	CurrentOffset() uint64
@@ -44,7 +43,7 @@ type segment struct {
 	offsetIndex     Index
 	timestampIndex  Index
 	maxRecordCount  uint64
-	path            string
+	datadir         string
 }
 
 func segmentName(datadir string, id uint64) string {
@@ -81,12 +80,9 @@ func deleteSegment(datadir string, id uint64) error {
 
 func (s *segment) Delete() error {
 	s.Close()
-	return deleteSegment(s.path, s.baseOffset)
+	return deleteSegment(s.datadir, s.baseOffset)
 }
 
-func (i *segment) FilePath() string {
-	return i.path
-}
 func (i *segment) BaseOffset() uint64 {
 	return i.baseOffset
 }
@@ -140,7 +136,7 @@ func createSegment(datadir string, id uint64, maxRecordCount uint64) (Segment, e
 		return nil, err
 	}
 	s := &segment{
-		path:           filename,
+		datadir:        datadir,
 		baseOffset:     id,
 		currentOffset:  0,
 		maxRecordCount: maxRecordCount,
@@ -181,7 +177,7 @@ func openSegment(datadir string, id uint64, maxRecordCount uint64, write bool) (
 		return nil, err
 	}
 	s := &segment{
-		path:            filename,
+		datadir:         datadir,
 		baseOffset:      id,
 		currentOffset:   offset,
 		currentPosition: uint64(position),

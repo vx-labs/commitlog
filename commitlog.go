@@ -244,7 +244,10 @@ func (e *commitLog) TruncateBefore(offset uint64) error {
 		return nil
 	}
 	for _, segment := range e.segments[:idx] {
-		segment.Delete()
+		err := segment.Delete()
+		if err != nil {
+			return errors.Wrap(err, "failed to truncate log")
+		}
 	}
 	e.segments = e.segments[idx:]
 	return nil
