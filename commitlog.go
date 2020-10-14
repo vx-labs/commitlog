@@ -21,7 +21,7 @@ type commitLog struct {
 	datadir               string
 	mtx                   sync.Mutex
 	activeSegment         Segment
-	segments              []uint64
+	segments              []Segment
 	segmentMaxRecordCount uint64
 	maxSegmentCount       int
 }
@@ -101,13 +101,10 @@ func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (Comm
 			}
 			return nil, ErrCorruptedLog
 		}
-		l.segments = append(l.segments, offset)
+		l.segments = append(l.segments, segment)
 		if l.activeSegment != nil {
 			if l.activeSegment.BaseOffset() < segment.BaseOffset() {
-				l.activeSegment.Close()
 				l.activeSegment = segment
-			} else {
-				segment.Close()
 			}
 		} else {
 			l.activeSegment = segment
@@ -133,9 +130,8 @@ func (e *commitLog) Latest() uint64 {
 func (e *commitLog) Close() error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-
-	if e.activeSegment != nil {
-		return e.activeSegment.Close()
+	for _, segment := range e.segments {
+		segment.Close()
 	}
 	return nil
 }
@@ -145,16 +141,10 @@ func (e *commitLog) Datadir() string {
 func (e *commitLog) Delete() error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	if e.activeSegment != nil {
-		e.activeSegment.Close()
-	}
-	for _, idx := range e.segments {
-		segment, err := openSegment(e.datadir, idx, e.segmentMaxRecordCount, false)
-		if err == nil {
-			err = segment.Delete()
-			if err != nil {
-				return err
-			}
+	for _, segment := range e.segments {
+		err := segment.Delete()
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -162,20 +152,13 @@ func (e *commitLog) Delete() error {
 func (e *commitLog) appendSegment() error {
 	var nextOffset uint64
 	if len(e.segments) > 0 {
-		nextOffset = e.segments[len(e.segments)-1] + e.segmentMaxRecordCount
+		nextOffset = e.activeSegment.CurrentOffset() + e.activeSegment.BaseOffset()
 	}
-
 	segment, err := createSegment(e.datadir, nextOffset, e.segmentMaxRecordCount)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to create new segment with offset %d", nextOffset))
 	}
-	e.segments = append(e.segments, nextOffset)
-	if e.activeSegment != nil {
-		err = e.activeSegment.Close()
-		if err != nil {
-			return err
-		}
-	}
+	e.segments = append(e.segments, segment)
 	e.activeSegment = segment
 	return nil
 }
@@ -187,10 +170,7 @@ func (e *commitLog) trimSegments() {
 	}
 	count := len(e.segments)
 	for _, segment := range e.segments[0 : count-e.maxSegmentCount] {
-		err := deleteSegment(e.datadir, segment)
-		if err != nil {
-			// TODO: provide feedback on error
-		}
+		segment.Delete()
 	}
 	e.segments = e.segments[count-e.maxSegmentCount:]
 }
@@ -205,7 +185,7 @@ func (e *commitLog) lookupOffset(offset uint64) int {
 func (e *commitLog) lookupOffsetUnlocked(offset uint64) int {
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
-		return e.segments[i] > offset
+		return e.segments[i].BaseOffset() > offset
 	})
 	if idx == 0 {
 		return 0
@@ -217,31 +197,14 @@ func (e *commitLog) LookupTimestamp(ts uint64) uint64 {
 	defer e.mtx.Unlock()
 	count := len(e.segments)
 	idx := sort.Search(count, func(i int) bool {
-		seg, err := e.readSegment(e.segments[i])
-		if err != nil {
-			return true
-		}
-		defer seg.Close()
+		seg := e.segments[i]
 		return seg.Earliest() > ts
 	})
 	if idx <= 0 {
-		return 0
+		return e.segments[0].BaseOffset()
 	}
-	seg, err := e.readSegment(e.segments[idx-1])
-	if err != nil {
-		return 0
-	}
-	defer seg.Close()
+	seg := e.segments[idx-1]
 	return seg.LookupTimestamp(ts)
-}
-
-func (e *commitLog) readSegment(id uint64) (Segment, error) {
-	s, err := openSegment(e.datadir, id, e.segmentMaxRecordCount, false)
-	if err != nil {
-		return nil, err
-	}
-	_, err = s.Seek(int64(id), io.SeekStart)
-	return s, err
 }
 
 func (e *commitLog) Reader() Cursor {
@@ -262,11 +225,7 @@ func (e *commitLog) TruncateAfter(offset uint64) error {
 	if segmentIdx == len(e.segments)-1 {
 		segment = e.activeSegment
 	} else {
-		e.activeSegment.Close()
-		segment, err = openSegment(e.datadir, e.segments[segmentIdx], e.segmentMaxRecordCount, true)
-		if err != nil {
-			panic(err)
-		}
+		segment = e.segments[segmentIdx]
 	}
 	err = segment.TruncateAfter(offset)
 	if err != nil {
@@ -274,10 +233,7 @@ func (e *commitLog) TruncateAfter(offset uint64) error {
 	}
 	e.activeSegment = segment
 	for i := segmentIdx + 1; i < len(e.segments); i++ {
-		segment, err := openSegment(e.datadir, e.segments[i], e.segmentMaxRecordCount, true)
-		if err != nil {
-			panic(err)
-		}
+		segment = e.segments[i]
 		err = segment.Delete()
 		if err != nil {
 			panic(err)

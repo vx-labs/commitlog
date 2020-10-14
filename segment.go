@@ -29,11 +29,10 @@ type Segment interface {
 	Earliest() uint64
 	Latest() uint64
 	LookupTimestamp(ts uint64) uint64
+	LookupPosition(offset uint64) (int64, error)
 	TruncateAfter(offset uint64) error
-	io.WriterTo
-	io.Reader
+	io.ReaderAt
 	io.Closer
-	io.Seeker
 }
 
 type segment struct {
@@ -100,7 +99,7 @@ func (i *segment) Size() uint64 {
 func (i *segment) Name() string {
 	return i.fd.Name()
 }
-func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
+func (i *segment) LookupPosition(offset uint64) (int64, error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
 	if uint64(offset) < i.baseOffset {
@@ -110,22 +109,11 @@ func (i *segment) Seek(offset int64, whence int) (n int64, err error) {
 	if relOffset >= i.maxRecordCount {
 		return 0, io.EOF
 	}
-	fileOffset, err := i.offsetIndex.readPosition(uint64(offset) - i.baseOffset)
+	fileOffset, err := i.offsetIndex.readPosition(relOffset)
 	if err != nil {
 		return 0, err
 	}
-	if relOffset != 0 && fileOffset == 0 {
-		_, err = i.fd.Seek(0, io.SeekEnd)
-		if err != nil {
-			return 0, err
-		}
-	} else {
-		_, err = i.fd.Seek(int64(fileOffset), io.SeekStart)
-		if err != nil {
-			return 0, err
-		}
-	}
-	return offset, nil
+	return int64(fileOffset), nil
 }
 func (i *segment) WriteTo(w io.Writer) (n int64, err error) {
 	i.mtx.Lock()
@@ -229,6 +217,9 @@ func checkSegmentIntegrity(r io.ReadSeeker, maxRecordCount uint64) (uint64, erro
 }
 
 func (e *segment) LookupTimestamp(ts uint64) uint64 {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
 	idx := sort.Search(int(e.CurrentOffset()), func(i int) bool {
 		n, err := e.timestampIndex.readPosition(uint64(i))
 		if err != nil {
@@ -245,9 +236,7 @@ func (e *segment) Earliest() uint64 {
 	}
 	return n
 }
-func (e *segment) Latest() uint64 {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
+func (e *segment) latest() uint64 {
 	if e.CurrentOffset() == 0 {
 		return 0
 	}
@@ -255,12 +244,17 @@ func (e *segment) Latest() uint64 {
 	if err != nil {
 		return 0
 	}
-	return n
+	return n + e.baseOffset
 }
-func (e *segment) Read(p []byte) (int, error) {
+func (e *segment) Latest() uint64 {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	return e.fd.Read(p)
+	return e.latest()
+}
+func (e *segment) ReadAt(p []byte, pos int64) (int, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.fd.ReadAt(p, pos)
 }
 
 func (e *segment) WriteEntry(ts uint64, value []byte) (uint64, error) {

@@ -1,7 +1,6 @@
 package commitlog
 
 import (
-	"io"
 	"os"
 	"testing"
 
@@ -35,26 +34,25 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, uint64(1), s.CurrentOffset())
 		require.Equal(t, uint64(EntryHeaderSize+len(value)), s.Size())
 	})
-	t.Run("should allow seeking offset", func(t *testing.T) {
-		s.WriteEntry(2, value)
-		s.WriteEntry(2, value)
-		s.WriteEntry(2, value)
-		n, err := s.Seek(0, io.SeekStart)
-		require.NoError(t, err)
-		require.Equal(t, int64(0), n)
-		n, err = s.Seek(3, io.SeekStart)
-		require.NoError(t, err)
-		require.Equal(t, int64(3), n)
-	})
 	t.Run("should allow seeking timestamp", func(t *testing.T) {
 		require.Equal(t, uint64(0), s.(*segment).LookupTimestamp(0))
-		require.Equal(t, uint64(4), s.(*segment).LookupTimestamp(10))
+		require.Equal(t, uint64(1), s.(*segment).LookupTimestamp(10))
 	})
 	t.Run("should allow truncate after a given offset", func(t *testing.T) {
+		n, err := s.WriteEntry(3, value)
+		require.NoError(t, err)
+		require.Equal(t, uint64(1), n)
+		n, err = s.WriteEntry(4, value)
+		require.NoError(t, err)
+		require.Equal(t, uint64(2), n)
+		n, err = s.WriteEntry(5, value)
+		require.NoError(t, err)
+		require.Equal(t, uint64(3), n)
+
 		require.Equal(t, uint64(4), s.CurrentOffset())
 		require.NoError(t, s.(*segment).TruncateAfter(2))
 		require.Equal(t, uint64(3), s.CurrentOffset())
-		n, err := s.WriteEntry(5, value)
+		n, err = s.WriteEntry(5, value)
 		require.NoError(t, err)
 		require.Equal(t, uint64(3), n)
 	})

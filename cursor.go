@@ -9,7 +9,6 @@ import (
 
 type Cursor interface {
 	io.Seeker
-	io.WriterTo
 	io.Reader
 	io.Closer
 }
@@ -18,6 +17,7 @@ type cursor struct {
 	currentIdx     int
 	mtx            sync.Mutex
 	currentSegment Segment
+	pos            int64
 	log            *commitLog
 }
 
@@ -25,9 +25,9 @@ func (c *cursor) Close() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.currentSegment != nil {
-		err := c.currentSegment.Close()
 		c.currentSegment = nil
-		return err
+		c.pos = 0
+		return nil
 	}
 	return nil
 }
@@ -40,20 +40,17 @@ func (c *cursor) seekFromStart(offset int64) (int64, error) {
 	idx := c.log.lookupOffset(uint64(offset))
 	if idx != c.currentIdx || c.currentSegment == nil {
 		if c.currentSegment != nil {
-			err := c.currentSegment.Close()
-			if err != nil {
-				return 0, err
-			}
 			c.currentSegment = nil
 		}
-		segment, err := c.log.readSegment(c.log.segments[idx])
-		if err != nil {
-			return 0, err
-		}
 		c.currentIdx = idx
-		c.currentSegment = segment
+		c.currentSegment = c.log.segments[idx]
 	}
-	return c.currentSegment.Seek(offset, io.SeekStart)
+	pos, err := c.currentSegment.LookupPosition(uint64(offset))
+	if err != nil {
+		return 0, err
+	}
+	c.pos = pos
+	return offset, nil
 }
 
 func (c *cursor) seek(offset int64, whence int) (int64, error) {
@@ -72,11 +69,7 @@ func (c *cursor) doesSegmentExists(idx int) bool {
 }
 func (c *cursor) openCurrentSegment() error {
 	if c.doesSegmentExists(c.currentIdx) {
-		segment, err := c.log.readSegment(c.log.segments[c.currentIdx])
-		if err != nil {
-			return err
-		}
-		c.currentSegment = segment
+		c.currentSegment = c.log.segments[c.currentIdx]
 		return nil
 	}
 	return io.EOF
@@ -92,41 +85,13 @@ func (c *cursor) Read(p []byte) (int, error) {
 				return total, err
 			}
 		}
-		n, err := c.currentSegment.Read(p[total:])
+		n, err := c.currentSegment.ReadAt(p[total:], c.pos)
+		c.pos += int64(n)
 		total += n
 		if err == io.EOF {
 			if c.doesSegmentExists(c.currentIdx + 1) {
-				if err := c.currentSegment.Close(); err != nil {
-					return total, err
-				}
 				c.currentIdx++
-				c.currentSegment = nil
-				continue
-			}
-		}
-		return total, err
-	}
-}
-
-func (c *cursor) WriteTo(w io.Writer) (int64, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	var total int64
-
-	for {
-		if c.currentSegment == nil {
-			if err := c.openCurrentSegment(); err != nil {
-				return total, err
-			}
-		}
-		n, err := c.currentSegment.WriteTo(w)
-		total += n
-		if err == nil {
-			if c.doesSegmentExists(c.currentIdx + 1) {
-				if err := c.currentSegment.Close(); err != nil {
-					return total, err
-				}
-				c.currentIdx++
+				c.pos = 0
 				c.currentSegment = nil
 				continue
 			}
