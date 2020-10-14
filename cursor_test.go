@@ -58,3 +58,30 @@ func TestCursor(t *testing.T) {
 	})
 
 }
+
+func TestCursorDeletion(t *testing.T) {
+	datadir := "/tmp/commitlog_test/"
+	os.MkdirAll(datadir, 0750)
+	defer os.RemoveAll(datadir)
+
+	clog, err := create(datadir, 10, WithMaxSegmentCount(4))
+	require.NoError(t, err)
+	defer clog.Delete()
+	value := []byte("test")
+	r := clog.Reader()
+	for i := 0; i < 50; i++ {
+		n, err := clog.WriteEntry(uint64(i), value)
+		require.NoError(t, err)
+		require.Equal(t, uint64(i), n)
+	}
+	l := clog.(*commitLog)
+	require.Equal(t, 4, len(l.segments))
+	buf := make([]byte, 4)
+	n, err := r.Read(buf)
+	require.Equal(t, err.Error(), "read /tmp/commitlog_test/0.log: file already closed")
+	require.Equal(t, 0, n)
+	r.Seek(0, io.SeekStart)
+	n, err = r.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 4, n)
+}
