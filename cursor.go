@@ -67,7 +67,9 @@ func (c *cursor) Read(p []byte) (int, error) {
 			}
 			c.currentSegment = c.log.lookupOffset(currentLogOffset)
 			c.pos = 0
-			continue
+			if len(p) > total {
+				continue
+			}
 		}
 		return total, err
 	}
