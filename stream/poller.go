@@ -158,6 +158,9 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 					return
 				}
 			}
+			if len(s.current.Records) == 0 {
+				s.current.FirstOffset = entry.Offset()
+			}
 			s.current.Records = append(s.current.Records, entry.Payload())
 			s.currentMemorySizeInBytes += len(entry.Payload())
 			if s.recordCountdown > 0 {
