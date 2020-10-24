@@ -123,6 +123,7 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 				if err == io.EOF {
 					if err := s.waitFlush(ctx); err != nil {
 						s.err = err
+						return
 					}
 					if opts.EOFBehaviour == EOFBehaviourExit {
 						return
@@ -184,6 +185,7 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			if err == io.EOF {
 				if err := s.waitFlush(ctx); err != nil {
 					s.err = err
+					return
 				}
 				if opts.EOFBehaviour == EOFBehaviourExit {
 					return
@@ -196,8 +198,8 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 				}
 			} else {
 				s.err = err
+				return
 			}
-			return
 		}
 	}
 }
