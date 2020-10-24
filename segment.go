@@ -99,11 +99,11 @@ func (i *segment) LookupPosition(offset uint64) (int64, error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
 	if uint64(offset) < i.baseOffset {
-		return 0, io.EOF
+		return 0, nil
 	}
 	relOffset := uint64(offset) - i.baseOffset
 	if relOffset >= i.maxRecordCount {
-		return 0, io.EOF
+		return int64(i.currentPosition), nil
 	}
 	fileOffset, err := i.offsetIndex.readPosition(relOffset)
 	if err != nil {
