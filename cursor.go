@@ -47,7 +47,7 @@ func (c *cursor) seek(offset int64, whence int) (int64, error) {
 	}
 	c.currentSegment = c.log.lookupOffset(target)
 	c.pos, err = c.currentSegment.LookupPosition(target)
-	return offset, err
+	return int64(target), err
 
 }
 
