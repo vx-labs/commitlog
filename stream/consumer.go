@@ -25,6 +25,9 @@ func WithMaxRecordCount(o int64) consumerOpts {
 func WithMaxBatchSize(v int) consumerOpts {
 	return func(c *ConsumerOpts) { c.MaxBatchSize = v }
 }
+func WithMinBatchSize(v int) consumerOpts {
+	return func(c *ConsumerOpts) { c.MinBatchSize = v }
+}
 func WithEOFBehaviour(v eofBehaviour) consumerOpts {
 	return func(c *ConsumerOpts) { c.EOFBehaviour = v }
 }
@@ -57,6 +60,7 @@ type Consumer interface {
 func NewConsumer(opts ...consumerOpts) Consumer {
 	config := ConsumerOpts{
 		MaxBatchSize:              10,
+		MinBatchSize:              10,
 		MaxBatchMemorySizeInBytes: 20000000,
 		EOFBehaviour:              EOFBehaviourPoll,
 		FromOffset:                0,

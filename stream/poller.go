@@ -21,6 +21,7 @@ const (
 type ConsumerOpts struct {
 	Name                      string
 	MaxBatchSize              int
+	MinBatchSize              int
 	MaxBatchMemorySizeInBytes int
 	MaxRecordCount            int64
 	FromOffset                int64
@@ -62,7 +63,7 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 		maxBatchSize:              opts.MaxBatchSize,
 		maxBatchMemorySizeInBytes: opts.MaxBatchMemorySizeInBytes,
 		recordCountdown:           opts.MaxRecordCount,
-		minBatchSize:              10,
+		minBatchSize:              opts.MinBatchSize,
 		current: Batch{
 			FirstOffset: uint64(offset),
 			Records:     [][]byte{},
