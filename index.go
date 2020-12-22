@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/tysontate/gommap"
 )
@@ -27,6 +28,7 @@ var (
 	ErrFSyncFailed           = errors.New("file sync failed")
 	ErrMSyncFailed           = errors.New("mmap sync failed")
 	ErrIndexCorrupt          = errors.New("index corrupt")
+	ErrIndexClosed           = errors.New("index closed")
 )
 
 type Index interface {
@@ -39,9 +41,11 @@ type Index interface {
 }
 
 type index struct {
-	path string
-	fd   *os.File
-	data gommap.MMap
+	path   string
+	fd     *os.File
+	data   gommap.MMap
+	closed bool
+	mtx    sync.RWMutex
 }
 
 func indexName(datadir, suffix string, id uint64) string {
@@ -122,6 +126,15 @@ func (i *index) mmap() error {
 }
 
 func (i *index) Sync() error {
+	i.mtx.RLock()
+	defer i.mtx.RUnlock()
+	if i.isClosed() {
+		return ErrIndexClosed
+	}
+	return i.sync()
+}
+
+func (i *index) sync() error {
 	if err := i.fd.Sync(); err != nil {
 		return ErrFSyncFailed
 	}
@@ -130,9 +143,14 @@ func (i *index) Sync() error {
 	}
 	return nil
 }
-
+func (i *index) isClosed() bool {
+	return i.closed
+}
 func (i *index) Close() error {
-	err := i.Sync()
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+	i.closed = true
+	err := i.sync()
 	if err != nil {
 		return err
 	}
@@ -143,12 +161,24 @@ func (i *index) Close() error {
 	return i.fd.Close()
 }
 func (i *index) writePosition(offset, position uint64) error {
+	i.mtx.RLock()
+	defer i.mtx.RUnlock()
+
+	if i.isClosed() {
+		return ErrIndexClosed
+	}
 	writeOffset := offset * indexValueSize
 	encoding.PutUint64(i.data[writeOffset:writeOffset+indexValueSize], position)
 	return nil
 }
 
 func (i *index) readPosition(offset uint64) (uint64, error) {
+	i.mtx.RLock()
+	defer i.mtx.RUnlock()
+	if i.isClosed() {
+		return 0, ErrIndexClosed
+	}
+
 	writeOffset := offset * indexValueSize
 	return encoding.Uint64(i.data[writeOffset : writeOffset+indexValueSize]), nil
 }

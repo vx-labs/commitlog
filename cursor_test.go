@@ -46,8 +46,12 @@ func TestCursor(t *testing.T) {
 		cReader := clog.Reader()
 		r := cReader.(*cursor)
 		t.Run("start", func(t *testing.T) {
-			offset, _ := r.Seek(1, io.SeekStart)
+			offset, _ := r.Seek(0, io.SeekStart)
+			require.Equal(t, int64(0), offset)
+			require.Equal(t, int64(0), r.pos)
+			offset, _ = r.Seek(1, io.SeekStart)
 			require.Equal(t, int64(1), offset)
+			require.Equal(t, int64(32), r.pos)
 			offset, _ = r.Seek(2, io.SeekStart)
 			require.Equal(t, int64(2), offset)
 			offset, _ = r.Seek(30, io.SeekStart)
