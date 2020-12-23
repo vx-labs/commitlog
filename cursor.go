@@ -3,6 +3,7 @@ package commitlog
 import (
 	"io"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 )
@@ -29,7 +30,7 @@ func (c *cursor) seek(offset int64, whence int) (int64, error) {
 	var target uint64
 	switch whence {
 	case io.SeekEnd:
-		lastOffset := int64(c.log.currentOffset)
+		lastOffset := int64(atomic.LoadUint64(&c.log.currentOffset))
 		if offset > lastOffset {
 			target = uint64(lastOffset)
 		} else {
@@ -62,7 +63,7 @@ func (c *cursor) Read(p []byte) (int, error) {
 		total += n
 		if err == io.EOF {
 			currentLogOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
-			if c.log.currentOffset == currentLogOffset {
+			if atomic.LoadUint64(&c.log.currentOffset) == currentLogOffset {
 				return total, err
 			}
 			c.currentSegment = c.log.lookupOffset(currentLogOffset)

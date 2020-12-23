@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pkg/errors"
 )
@@ -121,14 +122,12 @@ func open(datadir string, segmentMaxRecordCount uint64, opts ...createOpt) (Comm
 		offset += uint64(segmentMaxRecordCount)
 	}
 	l.trimSegments()
-	l.currentOffset = l.activeSegment.CurrentOffset() + l.activeSegment.BaseOffset()
+	atomic.StoreUint64(&l.currentOffset, l.activeSegment.CurrentOffset()+l.activeSegment.BaseOffset())
 	return l, nil
 }
 
 func (e *commitLog) Offset() uint64 {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.currentOffset
+	return atomic.LoadUint64(&e.currentOffset)
 }
 func (e *commitLog) Latest() uint64 {
 	e.mtx.Lock()
@@ -293,6 +292,6 @@ func (e *commitLog) WriteEntry(ts uint64, value []byte) (uint64, error) {
 		e.trimSegments()
 	}
 	_, err := e.activeSegment.WriteEntry(ts, value)
-	e.currentOffset++
-	return e.currentOffset - 1, err
+	offset := atomic.AddUint64(&e.currentOffset, 1)
+	return offset - 1, err
 }
