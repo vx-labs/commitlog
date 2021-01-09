@@ -33,7 +33,7 @@ type ConsumerOpts struct {
 type Batch struct {
 	FirstOffset   uint64
 	LastTimestamp uint64
-	Records       [][]byte
+	Records       []commitlog.Entry
 }
 type poller struct {
 	maxBatchSize              int
@@ -66,7 +66,7 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 		minBatchSize:              opts.MinBatchSize,
 		current: Batch{
 			FirstOffset: uint64(offset),
-			Records:     [][]byte{},
+			Records:     []commitlog.Entry{},
 		},
 	}
 	go s.run(ctx, r, opts)
@@ -88,7 +88,7 @@ func (s *poller) waitFlush(ctx context.Context) error {
 		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
 			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-			Records:     [][]byte{},
+			Records:     []commitlog.Entry{},
 		}
 	case <-ctx.Done():
 		return ctx.Err()
@@ -104,7 +104,7 @@ func (s *poller) tryFlush(ctx context.Context) error {
 		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
 			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-			Records:     [][]byte{},
+			Records:     []commitlog.Entry{},
 		}
 	case <-ctx.Done():
 		return ctx.Err()
@@ -163,7 +163,7 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 			if len(s.current.Records) == 0 {
 				s.current.FirstOffset = entry.Offset()
 			}
-			s.current.Records = append(s.current.Records, entry.Payload())
+			s.current.Records = append(s.current.Records, entry)
 			s.currentMemorySizeInBytes += len(entry.Payload())
 			if s.recordCountdown > 0 {
 				s.recordCountdown--
