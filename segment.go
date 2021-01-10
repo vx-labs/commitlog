@@ -102,7 +102,7 @@ func (i *segment) LookupPosition(offset uint64) (int64, error) {
 		return 0, nil
 	}
 	relOffset := uint64(offset) - i.baseOffset
-	if relOffset >= i.maxRecordCount {
+	if relOffset >= i.maxRecordCount || relOffset >= i.currentOffset {
 		return int64(i.currentPosition), nil
 	}
 	fileOffset, err := i.offsetIndex.readPosition(relOffset)

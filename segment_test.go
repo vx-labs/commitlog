@@ -38,6 +38,11 @@ func TestSegment(t *testing.T) {
 		require.Equal(t, uint64(0), s.(*segment).LookupTimestamp(0))
 		require.Equal(t, uint64(1), s.(*segment).LookupTimestamp(10))
 	})
+	t.Run("should allow looking up position", func(t *testing.T) {
+		pos, err := s.(*segment).LookupPosition(1)
+		require.NoError(t, err)
+		require.Equal(t, int64(32), pos)
+	})
 	t.Run("should allow truncate after a given offset", func(t *testing.T) {
 		n, err := s.WriteEntry(3, value)
 		require.NoError(t, err)

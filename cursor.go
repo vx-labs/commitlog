@@ -28,9 +28,10 @@ func (c *cursor) Seek(offset int64, whence int) (int64, error) {
 func (c *cursor) seek(offset int64, whence int) (int64, error) {
 	var err error
 	var target uint64
+	lastOffset := int64(atomic.LoadUint64(&c.log.currentOffset))
+
 	switch whence {
 	case io.SeekEnd:
-		lastOffset := int64(atomic.LoadUint64(&c.log.currentOffset))
 		if offset > lastOffset {
 			target = uint64(lastOffset)
 		} else {
@@ -46,10 +47,12 @@ func (c *cursor) seek(offset int64, whence int) (int64, error) {
 	default:
 		return 0, errors.New("invalid whence")
 	}
+	if target > uint64(lastOffset) {
+		target = uint64(lastOffset)
+	}
 	c.currentSegment = c.log.lookupOffset(target)
 	c.pos, err = c.currentSegment.LookupPosition(target)
 	return int64(target), err
-
 }
 
 func (c *cursor) Read(p []byte) (int, error) {
