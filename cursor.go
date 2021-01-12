@@ -65,14 +65,17 @@ func (c *cursor) Read(p []byte) (int, error) {
 		c.pos += int64(n)
 		total += n
 		if err == io.EOF {
-			currentLogOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
-			if atomic.LoadUint64(&c.log.currentOffset) == currentLogOffset {
-				return total, err
+			if total > 0 {
+				return total, nil
 			}
-			c.currentSegment = c.log.lookupOffset(currentLogOffset)
-			c.pos = 0
-			if len(p) > total {
-				continue
+			currentLogOffset := c.currentSegment.BaseOffset() + c.currentSegment.CurrentOffset()
+			nextSegment := c.log.lookupOffset(currentLogOffset)
+			if nextSegment.BaseOffset() != c.currentSegment.BaseOffset() {
+				c.currentSegment = nextSegment
+				c.pos = 0
+				if len(p) > total {
+					continue
+				}
 			}
 		}
 		return total, err

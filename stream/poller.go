@@ -31,9 +31,7 @@ type ConsumerOpts struct {
 }
 
 type Batch struct {
-	FirstOffset   uint64
-	LastTimestamp uint64
-	Records       []commitlog.Entry
+	Records []commitlog.Entry
 }
 type poller struct {
 	maxBatchSize              int
@@ -52,9 +50,8 @@ type Poller interface {
 }
 
 func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
-	var offset int64
 
-	offset, _ = r.Seek(opts.FromOffset, io.SeekStart)
+	r.Seek(opts.FromOffset, io.SeekStart)
 	if opts.OffsetProvider != nil {
 		opts.OffsetProvider.AdvanceTo(uint64(opts.FromOffset))
 	}
@@ -65,8 +62,7 @@ func newPoller(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) Poller {
 		recordCountdown:           opts.MaxRecordCount,
 		minBatchSize:              opts.MinBatchSize,
 		current: Batch{
-			FirstOffset: uint64(offset),
-			Records:     []commitlog.Entry{},
+			Records: []commitlog.Entry{},
 		},
 	}
 	go s.run(ctx, r, opts)
@@ -87,8 +83,7 @@ func (s *poller) waitFlush(ctx context.Context) error {
 	case s.ch <- s.current:
 		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
-			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-			Records:     []commitlog.Entry{},
+			Records: []commitlog.Entry{},
 		}
 	case <-ctx.Done():
 		return ctx.Err()
@@ -103,8 +98,7 @@ func (s *poller) tryFlush(ctx context.Context) error {
 	case s.ch <- s.current:
 		s.currentMemorySizeInBytes = 0
 		s.current = Batch{
-			FirstOffset: s.current.FirstOffset + uint64(len(s.current.Records)),
-			Records:     []commitlog.Entry{},
+			Records: []commitlog.Entry{},
 		}
 	case <-ctx.Done():
 		return ctx.Err()
@@ -160,15 +154,11 @@ func (s *poller) run(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts) {
 					return
 				}
 			}
-			if len(s.current.Records) == 0 {
-				s.current.FirstOffset = entry.Offset()
-			}
 			s.current.Records = append(s.current.Records, entry)
 			s.currentMemorySizeInBytes += len(entry.Payload())
 			if s.recordCountdown > 0 {
 				s.recordCountdown--
 			}
-			s.current.LastTimestamp = entry.Timestamp()
 		}
 		if len(s.current.Records) >= s.maxBatchSize {
 			if err := s.waitFlush(ctx); err != nil {
