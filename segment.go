@@ -98,7 +98,7 @@ func (i *segment) Name() string {
 func (i *segment) LookupPosition(offset uint64) (int64, error) {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
-	if uint64(offset) < i.baseOffset {
+	if uint64(offset) <= i.baseOffset {
 		return 0, nil
 	}
 	relOffset := uint64(offset) - i.baseOffset

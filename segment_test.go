@@ -42,6 +42,9 @@ func TestSegment(t *testing.T) {
 		pos, err := s.(*segment).LookupPosition(1)
 		require.NoError(t, err)
 		require.Equal(t, int64(32), pos)
+		pos, err = s.(*segment).LookupPosition(0)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), pos)
 	})
 	t.Run("should allow truncate after a given offset", func(t *testing.T) {
 		n, err := s.WriteEntry(3, value)

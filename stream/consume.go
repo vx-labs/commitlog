@@ -10,6 +10,8 @@ type Processor func(context.Context, Batch) error
 
 // consume starts a poller, and calls Processor on each stream records
 func consume(ctx context.Context, r io.ReadSeeker, opts ConsumerOpts, processor Processor) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	poller := newPoller(ctx, r, opts)
 	for _, middleware := range opts.Middleware {
 		processor = middleware(processor, opts)
