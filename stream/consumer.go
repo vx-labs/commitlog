@@ -18,10 +18,18 @@ func FromOffset(o int64) consumerOpts {
 	return func(c *ConsumerOpts) { c.FromOffset = o }
 }
 func WithMaxRecordCount(o int64) consumerOpts {
-	return func(c *ConsumerOpts) { c.MaxRecordCount = o }
+	return func(c *ConsumerOpts) {
+		if o > 0 {
+			c.MaxRecordCount = o
+		}
+	}
 }
 func WithMaxBatchSize(v int) consumerOpts {
-	return func(c *ConsumerOpts) { c.MaxBatchSize = v }
+	return func(c *ConsumerOpts) {
+		if v > 0 {
+			c.MaxBatchSize = v
+		}
+	}
 }
 func WithMinBatchSize(v int) consumerOpts {
 	return func(c *ConsumerOpts) { c.MinBatchSize = v }
